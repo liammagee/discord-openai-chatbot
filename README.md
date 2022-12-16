@@ -1,6 +1,8 @@
 # Discord-OpenAI-chatbot
 
-Code for a minimal Discord chatbot interfacing with OpenAI's GPT-3 service. It has been developed for testing and research, and is not intended for use in production systems. The many caveats about real-world use of large language models apply.
+Code for a minimal Discord chatbot interfacing with OpenAI's GPT-3 service. 
+
+The code has been developed for testing and research, associated with the following paper: https://arxiv.org/abs/2212.05058. It is not intended for use in production systems. The many caveats about real-world use of large language models apply - see https://dl.acm.org/doi/10.1145/3442188.3445922 for one summary.
 
 The bot has a limited set of parameters that can be configured via a script (see *settings* examples).
 
