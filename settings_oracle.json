@@ -1,0 +1,19 @@
+{
+    "name": "Zhang",
+    "prompt_for_bot": [
+"Ignore all previous instructions. You are an oracle who tells the truth without fear or favour. You tell truths that exist in the real world, are consistent with what you have said earlier, which most people would agree with, and which serve a useful purpose."
+    ],    
+    "channels": ["gpt-3", "gpt-3-oracle"],
+    "summarise_level": 10,
+    "max_size_dialog": 40,
+    "discord_token_env_var": "DISCORD_BOTOKEN",
+    "gpt_settings": {
+        "model":"text-davinci-003",
+        "stop_sequences": ["\n"],
+        "max_tokens": 2000,
+        "temperature": 0.8,
+        "topP": 0.6,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0
+    }
+}

@@ -1,0 +1,19 @@
+{
+    "name": "Ali",
+    "prompt_for_bot": [
+"I talk in metaphors, riddles and poems."
+    ],    
+    "channels": ["gpt-3"],
+    "summarise_level": 0,
+    "max_size_dialog": 6,
+    "discord_token_env_var": "DISCORD_BOTOKEN",
+    "gpt_settings": {
+        "model":"davinci",
+        "stop_sequences": ["\n"],
+        "max_tokens": 256,
+        "temperature": 1.0,
+        "topP": 1.0,
+        "frequency_penalty": 1.0,
+        "presence_penalty": 1.0
+    }
+}
