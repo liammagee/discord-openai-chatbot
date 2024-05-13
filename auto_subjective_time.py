@@ -70,8 +70,6 @@ prompt_suffix = """{0}: {1}
 async def ask_prompt(prompt, model="text-davinci-003", num_results=1, stopSequences=["You:", "Zhang:"], topKReturn=1):
     try:
         local_model = model
-        if params_gpt["model_random"]:
-            local_model = all_models[random.randint(0, 2)]
         messages = []
         messages.append({"role": "system", "content": ""})
         messages.append({"role": "user", "content": prompt})
@@ -90,7 +88,7 @@ async def ask_prompt(prompt, model="text-davinci-003", num_results=1, stopSequen
         print(e)
         return "Looks like GPT is down!"
 
-async def chat_prompt(author_name, prompt, model='gpt-3.5-turbo', stopSequences=["You:", "Zhang:"]):
+async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:", "Zhang:"]):
     try:
         prompt_for_bot = params_gpt["prompt_for_bot"]
         if type(prompt_for_bot) == list:
@@ -110,10 +108,7 @@ async def chat_prompt(author_name, prompt, model='gpt-3.5-turbo', stopSequences=
             max_tokens=params_gpt["max_tokens"],
             temperature=params_gpt["temperature"],
         )
-            # top_p=params_gpt["top_p"],
-            # frequency_penalty=params_gpt["frequency_penalty"],
-            # presence_penalty=params_gpt["presence_penalty"],
-            # stop=stopSequences
+
         if response != 0:
             return response.choices[0].message
         return {"role": "system", "content": "No response"}
@@ -318,33 +313,20 @@ async def on_message(message):
             # For debugging
             result = "[NO-GPT RESPONSE]"
             print(model)
-            if model.startswith("gpt-3.5") or model.startswith("gpt-4"):
-                try:
-                    reply = await chat_prompt(author_name, prompt, stopSequences=stop_sequences + member_stops)
-                    result = reply.content.strip()
-                except Exception as e:
-                    print(e)
-                    result = 'So sorry, dear User! ChatGPT is down.'
-            else:
-                ai_prompt = create_prompt(author_name, prompt)
-                # 
-                # print(ai_prompt)
-                result = await ask_prompt(ai_prompt, stopSequences=stop_sequences + member_stops)
-                result = result.strip()
+            try:
+                reply = await chat_prompt(author_name, prompt, stopSequences=stop_sequences + member_stops)
+                result = reply.content.strip()
+            except Exception as e:
+                print(e)
+                result = 'So sorry, dear User! ChatGPT is down.'
             
             if result != "":
                 dialog_instance = prompt_suffix.format(author_name, prompt, bot_name).rstrip() + ' ' + result
-                if model.startswith("gpt-3.5") or model.startswith("gpt-4"):
-                    if len(bot_running_dialog) >= max_size_dialog:
-                        bot_running_dialog.pop(0)
-                        bot_running_dialog.pop(0)
-                    bot_running_dialog.append({"role": "user", "content": prompt})
-                    bot_running_dialog.append({"role": "assistant", "content": result})
-                else:
-                    if len(bot_running_dialog) >= max_size_dialog:
-                        bot_running_dialog.pop(0)
-                    bot_running_dialog.append(dialog_instance)
-
+                if len(bot_running_dialog) >= max_size_dialog:
+                    bot_running_dialog.pop(0)
+                    bot_running_dialog.pop(0)
+                bot_running_dialog.append({"role": "user", "content": prompt})
+                bot_running_dialog.append({"role": "assistant", "content": result})
 
                 result = '{0}'.format(result)
 
@@ -374,38 +356,6 @@ async def on_message(message):
                 for chunk in chunks:
                     await message.reply(chunk)
 
-                if image_generation == True:
-                    await message.reply("Image generation", view=view)
-
-                # Specific handling for input text
-                if prompt.startswith("Show me a picture") or prompt.startswith("Show me an image") or prompt.startswith("Show me a photo"):
-                    # Split the text string into individual paragraphs
-                    paragraphs = result.split('\n\n')
-
-                    # Extract the last paragraph, if there is one
-                    if len(paragraphs) > 0:
-                        last_paragraph = paragraphs[-1]
-                    else:
-                        last_paragraph = result
-                    
-                    # OpenAI
-                    image_url = await image_openai(last_paragraph)
-                    # download file from URL
-                    response = requests.get(image_url)
-                    # get filename from URL
-                    filename = image_url.split('/')[-1] + '.png'
-                    # create temporary file to store downloaded file
-                    with open(filename, 'wb') as f:
-                        f.write(response.content)
-                    file = discord.File(filename)
-                    await message.channel.send(file=file)
-                    # await message.channel.send(image_url)
-                    # SD
-                    # image_urls, warning_messages = await image_sd(prompt, steps = 30)
-                    # if len(image_urls) > 0:
-                    #     for image_url in image_urls:
-                    #         file = discord.File(image_url)
-                    #         await message.channel.send(file=file)
             else:
                 await message.channel.send("Sorry, couldn't reply")
 
@@ -423,21 +373,42 @@ def str_to_bool(s: str) -> bool:
 
 
 async def periodic_task():
+    global bot_running_dialog
+    global channel_last
+    
     while True:
         # Get the current time
         now = datetime.now()
 
         # Format the time into a human-readable string
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        
+
         print(formatted_time)
 
         if channel_last:
-                     
-            await channel_last.send(formatted_time)
+
+            await channel_last.send(formatted_time)         
+
+            prompt = formatted_time
+            result = ''
+            try:
+                reply = await chat_prompt("Time", formatted_time, stopSequences=stop_sequences)
+                result = reply.content.strip()
+            except Exception as e:
+                print(e)
+                result = 'So sorry, dear User! ChatGPT is down.'
+            
+            if result != "":
+                if len(bot_running_dialog) >= max_size_dialog:
+                    bot_running_dialog.pop(0)
+                    bot_running_dialog.pop(0)
+                bot_running_dialog.append({"role": "user", "content": prompt})
+                bot_running_dialog.append({"role": "assistant", "content": result})
+
+            await channel_last.send(result)
         else:
             print("No channel_last_id")
-        await asyncio.sleep(20)  # sleep for 20 seconds
+        await asyncio.sleep(5)  # sleep for 20 seconds
 
 
 
