@@ -145,4 +145,4 @@ images-generated/*.png
 export*
 journal_entries*
 
-.DS_Store
+.DS_Store.envrc
