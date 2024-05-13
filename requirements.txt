@@ -10,7 +10,7 @@ frozenlist==1.3.1
 idna==3.4
 multidict==6.0.2
 numpy==1.23.3
-openai>=0.26.5
+openai
 openpyxl==3.0.10
 pandas>=1.5.0
 pandas-stubs>=1.5.0.221003
