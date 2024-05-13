@@ -137,6 +137,7 @@ async def retrieve(url):
 @client.event
 async def on_ready():
     await tree.sync(guild=discord.Object(guild_id))
+    client.loop.create_task(periodic_task())
     print(f'We have logged in as {client.user} to {len(client.guilds)} guilds.')
 
 
@@ -263,6 +264,7 @@ async def on_message(message):
     global prompt_for_bot
     global user_refs
     global summary
+    global channel_last
 
     model = params_gpt["model"]
     max_size_dialog = params_gpt["max_size_dialog"]
@@ -444,11 +446,23 @@ async def hello():
     await channel_last.send("Hello World!")
 
 
+async def periodic_task():
+    while True:
+        print("Hello World!")
+        if channel_last:
+            
+            await channel_last.send("Hello World!")
+        else:
+            print("No channel_last_id")
+        await asyncio.sleep(20)  # sleep for 20 seconds
+
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python3 auto_subject.py --subject <name-of-subject>")
         sys.exit(1)
+    
     subject = f'settings_{sys.argv[2]}.json'
     with open(subject, "r") as read_file:
         subject_json = json.loads(read_file.read())
@@ -470,6 +484,5 @@ if __name__ == "__main__":
     params_gpt["top_p"] = gpt_settings['top_p']
     params_gpt["frequency_penalty"] = gpt_settings['frequency_penalty']
     params_gpt["presence_penalty"] = gpt_settings['presence_penalty']
-    
 
     client.run(discord_token)
