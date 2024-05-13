@@ -1,6 +1,6 @@
 from cmd import PROMPT
 import os
-import random
+
 import requests
 from openai import OpenAI
 import anthropic
