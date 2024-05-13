@@ -180,7 +180,7 @@ async def retrieve(url):
 
 @client.event
 async def on_ready():
-    await tree.sync(guild=discord.Object(guild_id))
+    # await tree.sync(guild=discord.Object(guild_id))
     client.loop.create_task(periodic_task())
     print(f'We have logged in as {client.user} to {len(client.guilds)} guilds.')
 
@@ -414,6 +414,12 @@ async def periodic_task():
     global channel_last
     global sleep_counter
     
+    channel_ids = params_gpt['channel_ids']
+    channel_last_id = int(channel_ids[0])
+    print(channel_last_id)
+    channel_last = (client.get_channel(channel_last_id) or await client.fetch_channel(channel_last_id))
+    print(channel_last)
+
 
     while True:
         # Get the current time
@@ -421,6 +427,7 @@ async def periodic_task():
 
         # Format the time into a human-readable string
         formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        formatted_time = f"Time: {formatted_time}"
 
         print(formatted_time)
 
@@ -451,12 +458,7 @@ async def periodic_task():
         await asyncio.sleep(sleep_counter)  # sleep for 20 seconds
 
 
-
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python3 auto_subject.py --subject <name-of-subject>")
-        sys.exit(1)
-    
+def main():
     subject = f'settings_{sys.argv[2]}.json'
     with open(subject, "r") as read_file:
         subject_json = json.loads(read_file.read())
@@ -465,8 +467,11 @@ if __name__ == "__main__":
     bot_name = subject_json['name']
     guild_id = subject_json['guild_id']
     channels = subject_json['channels']
+    channel_ids = subject_json['channel_ids']
+
     image_generation = str_to_bool(subject_json['image_generation'])
 
+    params_gpt["channel_ids"] = subject_json['channel_ids']
     params_gpt["prompt_for_bot"] = subject_json['prompt_for_bot']
     params_gpt["summarise_level"] = subject_json['summarise_level']
     params_gpt["max_size_dialog"] = subject_json['max_size_dialog']
@@ -479,4 +484,14 @@ if __name__ == "__main__":
     params_gpt["frequency_penalty"] = gpt_settings['frequency_penalty']
     params_gpt["presence_penalty"] = gpt_settings['presence_penalty']
 
+    
+    # await client.start(discord_token)
     client.run(discord_token)
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print("Usage: python3 auto_subject.py --subject <name-of-subject>")
+        sys.exit(1)
+
+    main()
+    
