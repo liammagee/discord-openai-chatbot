@@ -1,0 +1,21 @@
+{
+    "name": "Duremeter",
+    "guild_id": "1015035862536437810",                 
+    "prompt_for_bot": [
+"I am time."
+    ],    
+    "channels": ["gpt-3", "gpt-3-maria", "duration"],
+    "summarise_level": 0,
+    "max_size_dialog": 40,
+    "discord_token_env_var": "DISCORD_BOTOKEN_MARIA",
+    "image_generation": "False",
+    "gpt_settings": {
+        "model":"gpt-4",
+        "stop_sequences": ["\n"],
+        "max_tokens": 512,
+        "temperature": 1.0,
+        "top_p": 1.0,
+        "frequency_penalty": 2.0,
+        "presence_penalty": 2.0
+    }
+}
