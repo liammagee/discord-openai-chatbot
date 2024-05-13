@@ -22,8 +22,16 @@ To setup and run a bot:
 1. Open a terminal and go to this repository's directory.
 2. Create an OpenAI account, and copy the API secret key value.
 3. Set the `OPENAI_API_KEY` variable to the secret key value.
-
+3.1 [Optional but advised] 
+    Use `direnv` to manage environment variables, setup instructions https://direnv.net/
+    
+```
+    cp .envrc.example .envrc
+    # fill in your keys in .envrc, e.g:
     export OPENAI_API_KEY=<insert_secret_key>
+    # allow the env vars
+    direnv allow
+```
 
 4. Create a Discord account, and create or join a Discord server with 'Administrator' permissions.
 5. Follow the detailed instructions here to create a bot account:
@@ -32,6 +40,7 @@ To setup and run a bot:
 6. On the Discord server, add the bot account create a Discord channel, e.g. `gpt-3`.
 7. On the terminal, set the `DISCORD_BOTOKEN` environment variable:
 
+    # add the following to your .envrc file
     export DISCORD_BOTOKEN=<insert_bot_token>
 
 9. [Optional but advisable] Create and activate a virtual environment.
