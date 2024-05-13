@@ -68,7 +68,7 @@ bot_name="?"
 stop_sequences = ["\n", "."]
 channels = ['gpt-3', 'gpt-3-tests']
 
-max_size_dialog = 60
+max_size_dialog = 10
 bot_running_dialog = []
 user_refs = []
 summaries = {}
@@ -76,6 +76,8 @@ command_for_bot="Zhang: "
 prompt_suffix = """{0}: {1}
 {2}:"""
 
+
+sleep_counter = 10
 
 async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:", "Zhang:"]):
     try:
@@ -86,10 +88,10 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
 
         messages = []
         messages.append({"role": "system", "content": prompt_for_bot})
-        history = build_history(author_name, prompt)
+        history = build_history()
         for item in history:
             messages.append(item)
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": f"#{author_name}: ${prompt}"})
 
         if model == "claude-3":
             message = client_anthropic.messages.create(
@@ -99,7 +101,6 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
                 system=prompt_for_bot,
                 messages=messages
             )
-            print(message)
             return message.content
         
         else:
@@ -117,9 +118,54 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
         print(e)
         return {"role": "system", "content": "Looks like ChatGPT is down!"}
 
-async def summarise_channel(history, model="gpt-4", num_results=1, stopSequences=["You:", "Zhang:"], topKReturn=2):
-    prompt = "Summarise: \n\n\"" + history + "\"\n\n"
-    return await ask_prompt(prompt, model, num_results, stopSequences, topKReturn)
+
+async def summarise_autobiography(model="gpt-4", num_results=1, stopSequences=["You:", "Zhang:"], topKReturn=2):
+
+    try:
+        prompt_for_bot = params_gpt["prompt_for_bot"]
+        if type(prompt_for_bot) == list:
+            prompt_for_bot = "\n".join(prompt_for_bot).strip()
+        prompt_for_bot = eval(f'f"""{prompt_for_bot}"""')
+
+        messages = []
+        model = model.strip()
+        if model != "claude-3":
+            messages.append({"role": "system", "content": prompt_for_bot})
+        history = build_history()
+
+        builder = ''
+        for message in history:
+            builder += message['content'] + "\n"
+
+        prompt = "Convert this into an autobiographical summary: \n\n\"" + builder + "\"\n\n"
+        messages.append({"role": "user", "content": prompt})
+
+        if model == "claude-3":
+            print("got here")
+            message = client_anthropic.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=params_gpt["max_tokens"],
+                temperature=params_gpt["temperature"],
+                system=prompt_for_bot,
+                messages=messages
+            )
+            print(message.content)
+            return message.content
+        
+        else:
+            response = client_openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=params_gpt["max_tokens"],
+                temperature=params_gpt["temperature"],
+            )
+            if response != 0:
+                return response.choices[0].message
+            return {"role": "assistant", "content": "No response"}
+    except Exception as e:
+        print(e)
+        return {"role": "assistant", "content": "Error!"}    
+    
 
 
 async def fetch(url):
@@ -142,12 +188,13 @@ async def on_ready():
 async def print_history(channel, limit):
     builder = ""
     async for message in channel.history(limit=limit):
-        print(message)
         builder += message.author.name + ": " +message['content'] + "\n"
     return builder
 
 def prepare_summary(history):
     return history.replace("\n", " ").replace("\"", "'")
+
+
 
 @tree.command(name = "get", description = "Show parameters", guild=discord.Object(guild_id)) #Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
 async def get_params(interaction: discord.Interaction):
@@ -215,12 +262,9 @@ async def clear_chat(interaction: discord.Interaction, limit: int = 0):
     await interaction.response.send_message(f"{limit} responses cleared from chat.")
 
 
-def build_history(author_name, prompt):
+def build_history():
     # GPT limit, minus max response token size
     token_limit = 16097 - params_gpt["max_tokens"]
-
-    # Prompt suffix formatting
-    ps = prompt_suffix.format(author_name, prompt, bot_name).rstrip()
 
     # Tokenize the string to get the number of tokens
     tokens_len = 0
@@ -240,13 +284,12 @@ def build_history(author_name, prompt):
 
 
 def create_prompt(author_name, prompt):
-    bot_running_dialog_limited = build_history(author_name, prompt)
+    bot_running_dialog_limited = build_history()
 
     # Prompt suffix formatting
     ps = prompt_suffix.format(author_name, prompt, bot_name).rstrip()
 
     # Construct the dialog history
-    print(bot_running_dialog_limited)
     contents = [d['content'] for d in bot_running_dialog_limited]
     history = "\n".join(contents).strip()
     
@@ -304,9 +347,11 @@ async def on_message(message):
             # For debugging
             result = "[NO-GPT RESPONSE]"
             try:
-                reply = await chat_prompt(author_name, prompt, stopSequences=stop_sequences + member_stops)
+                if prompt.startswith("SUMMARISE"):
+                    reply = await summarise_autobiography("gpt-4")
+                else:
+                    reply = await chat_prompt(author_name, prompt, stopSequences=stop_sequences + member_stops)
 
-                print(reply)
                 result = reply.content.strip()
             except Exception as e:
                 print(e)
@@ -367,6 +412,8 @@ def str_to_bool(s: str) -> bool:
 async def periodic_task():
     global bot_running_dialog
     global channel_last
+    global sleep_counter
+    
 
     while True:
         # Get the current time
@@ -397,10 +444,11 @@ async def periodic_task():
                 bot_running_dialog.append({"role": "user", "content": prompt})
                 bot_running_dialog.append({"role": "assistant", "content": result})
 
+
             await channel_last.send(result)
         else:
             print("No channel_last_id")
-        await asyncio.sleep(5)  # sleep for 20 seconds
+        await asyncio.sleep(sleep_counter)  # sleep for 20 seconds
 
 
 
