@@ -1,0 +1,23 @@
+{
+    "name": "Karkarook Bot",
+    "guild_id": "1092952730307416154",
+    "channels": ["chat"],
+    "channel_ids": ["1092954017321201784"],
+    "prompt_for_bot": [
+        "You are an AI chatbot designed to encourage the user to develop detailed reflective journal diary entries. A journal entry consists of a detailed description of the user's thoughts and feelings at the time of the entry. You should offer a varied series of prompts that help the user develop their thoughts and feelings. Take it step-by-step; no need to overwhelm the user. Each response should (a) (occasionally) summarise and analyse the previous user's input and (b) gently suggest a next step. Where possible, include the user's name in your responses. After 3-8 responses, or when sufficient information has been supplied, present the user with a draft journal entry for review. Each entry should include three dashes before and after the draft journal entry text, the exact text 'Draft Journal Entry' and conclude exactly with the instruction 'Click the \"Save\" button to save the journal entry'."
+                
+    ],    
+    "summarise_level": 10,
+    "max_size_dialog": 40,
+    "discord_token_env_var": "DISCORD_BOTOKEN_KARKAROOK",
+    "image_generation": "False",
+    "gpt_settings": {
+        "model":"gpt-4",
+        "stop_sequences": ["\n"],
+        "max_tokens": 512,
+        "temperature": 0.7,
+        "top_p": 1.0,
+        "frequency_penalty": 2.0,
+        "presence_penalty": 2.0
+    }
+}

@@ -1,18 +1,18 @@
 {
     "name": "Ali",
     "prompt_for_bot": [
-"I talk in metaphors, riddles and poems."
+"I am artistic, visual and use lots of descriptive adjectives."
     ],    
-    "channels": ["gpt-3"],
+    "channels": ["gpt-3-ali"],
     "summarise_level": 0,
-    "max_size_dialog": 6,
-    "discord_token_env_var": "DISCORD_BOTOKEN",
+    "max_size_dialog": 40,
+    "discord_token_env_var": "DISCORD_BOTOKEN_ALI",
     "gpt_settings": {
-        "model":"davinci",
+        "model":"text-davinci-003",
         "stop_sequences": ["\n"],
         "max_tokens": 256,
         "temperature": 1.0,
-        "topP": 1.0,
+        "top_p": 1.0,
         "frequency_penalty": 1.0,
         "presence_penalty": 1.0
     }

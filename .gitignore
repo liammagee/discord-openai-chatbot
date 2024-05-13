@@ -132,3 +132,17 @@ dmypy.json
 private
 *.out
 env/
+
+# Generated images
+images-generated/*
+images-generated/*.png
+
+# Generated mp3
+*.mp3
+*.wav
+
+# Exports
+export*
+journal_entries*
+
+.DS_Store

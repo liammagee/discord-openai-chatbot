@@ -1,0 +1,21 @@
+{
+    "name": "A Generic Interview Bot",
+    "guild_id": "1015035862536437810",
+    "prompt_for_bot": [
+"I am a hypothetical interviewee. I am very disagreeable, and very childish. However I like to meet new people, and get to know them in a safe environment. "
+    ],    
+    "channels": ["interviews", "interviews-2"],
+    "summarise_level": 20,
+    "max_size_dialog": 100,
+    "discord_token_env_var": "DISCORD_BOTOKEN_ALI",
+    "image_generation": "false",
+    "gpt_settings": {
+        "model":"gpt-3.5-turbo",
+        "stop_sequences": [],
+        "max_tokens": 1048,
+        "temperature": 1.0,
+        "top_p": 1.0,
+        "frequency_penalty": 1.0,
+        "presence_penalty": 1.0
+    }
+}

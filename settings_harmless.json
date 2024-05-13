@@ -12,7 +12,7 @@
         "stop_sequences": ["\n"],
         "max_tokens": 256,
         "temperature": 0.8,
-        "topP": 1.0,
+        "top_p": 1.0,
         "frequency_penalty": 1.0,
         "presence_penalty": 1.0
     }

@@ -1,0 +1,36 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: your-region
+  AWS_INSTANCE_IP: your-instance-ip
+  AWS_SSH_KEY: ${{ secrets.AWS_SSH_KEY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      
+    - name: Install dependencies and build
+      run: |
+        npm install
+        npm run build
+      
+    - name: Transfer files to instance
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ env.AWS_INSTANCE_IP }}
+        username: ubuntu
+        key: ${{ env.AWS_SSH_KEY }}
+        source: ./
+        target: /home/ubuntu/app/
+      
+    - name: Restart process on instance
+      run: |
+        ssh ubuntu@${{ env.AWS_INSTANCE_IP }} -i ${{ env.AWS_SSH_KEY }} 'cd /home/ubuntu/app && pm2 restart app.js'

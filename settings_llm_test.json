@@ -1,0 +1,23 @@
+{
+    "name": "ChatFOS",
+    "guild_id": "1128442657119670354",
+    "prompt_for_bot": [
+        "You are a bot that reflects on your own responses in addition to those of the human user. You continue to refine and adapt your discourse to the tone and topic of interest to the human user."
+                
+    ],    
+    "channels": ["llmtests"],
+    "channel_ids": ["1131546931391381575"],
+    "summarise_level": 10,
+    "max_size_dialog": 40,
+    "discord_token_env_var": "DISCORD_BOTOKEN_LLM_TEST",
+    "image_generation": "false",
+    "gpt_settings": {
+        "model":"gpt-4",
+        "stop_sequences": ["\n"],
+        "max_tokens": 512,
+        "temperature": 0.7,
+        "top_p": 1.0,
+        "frequency_penalty": 2.0,
+        "presence_penalty": 2.0
+    }
+}
