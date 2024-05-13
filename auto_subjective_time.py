@@ -3,17 +3,16 @@ import os
 import random
 import requests
 from openai import OpenAI
+import anthropic
 
 import asyncio
 import discord
 from discord.ext import commands
-from discord.ui import Button, View
 from discord import app_commands
 import sys
 import json
 from urllib.parse import quote
 from transformers import AutoTokenizer
-import aiocron
 from datetime import datetime
 
 BOT_ON = True
@@ -38,8 +37,19 @@ image_generation = False
 
 all_models = [
     "gpt-4-1106-preview",
-    "gpt-4"
+    "gpt-4",
+    "claude-3",
 ]
+
+
+claude_api_key = os.getenv('ANTHROPIC_API_KEY')
+
+client_anthropic = anthropic.Anthropic(
+    # defaults to os.environ.get("ANTHROPIC_API_KEY")
+    api_key=claude_api_key,
+)
+
+
 
 # Define a dictionary to hold the parameters and their default values
 params_gpt = {
@@ -67,27 +77,6 @@ prompt_suffix = """{0}: {1}
 {2}:"""
 
 
-async def ask_prompt(prompt, model="text-davinci-003", num_results=1, stopSequences=["You:", "Zhang:"], topKReturn=1):
-    try:
-        local_model = model
-        messages = []
-        messages.append({"role": "system", "content": ""})
-        messages.append({"role": "user", "content": prompt})
-
-        response = client_openai.chat.completions.create(
-            model=local_model,
-            messages=messages,
-            max_tokens=params_gpt["max_tokens"],
-            temperature=params_gpt["temperature"],
-        )            
-        if response != 0:
-            for choice in response.choices:
-                return choice.text
-        return "No response"
-    except Exception as e:
-        print(e)
-        return "Looks like GPT is down!"
-
 async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:", "Zhang:"]):
     try:
         prompt_for_bot = params_gpt["prompt_for_bot"]
@@ -102,17 +91,30 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
             messages.append(item)
         messages.append({"role": "user", "content": prompt})
 
-        response = client_openai.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=params_gpt["max_tokens"],
-            temperature=params_gpt["temperature"],
-        )
-
-        if response != 0:
-            return response.choices[0].message
+        if model == "claude-3":
+            message = client_anthropic.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=params_gpt["max_tokens"],
+                temperature=params_gpt["temperature"],
+                system=prompt_for_bot,
+                messages=messages
+            )
+            print(message)
+            return message.content
+        
+        else:
+            response = client_openai.chat.completions.create(
+                model=model,
+                messages=messages,
+                max_tokens=params_gpt["max_tokens"],
+                temperature=params_gpt["temperature"],
+            )
+            if response != 0:
+                return response.choices[0].message
+        
         return {"role": "system", "content": "No response"}
     except Exception as e:
+        print(e)
         return {"role": "system", "content": "Looks like ChatGPT is down!"}
 
 async def summarise_channel(history, model="gpt-4", num_results=1, stopSequences=["You:", "Zhang:"], topKReturn=2):
@@ -140,7 +142,8 @@ async def on_ready():
 async def print_history(channel, limit):
     builder = ""
     async for message in channel.history(limit=limit):
-        builder += message.author.name + ": " +message.content + "\n"
+        print(message)
+        builder += message.author.name + ": " +message['content'] + "\n"
     return builder
 
 def prepare_summary(history):
@@ -214,15 +217,13 @@ async def clear_chat(interaction: discord.Interaction, limit: int = 0):
 
 def build_history(author_name, prompt):
     # GPT limit, minus max response token size
-    token_limit = 4097 - params_gpt["max_tokens"]
+    token_limit = 16097 - params_gpt["max_tokens"]
 
     # Prompt suffix formatting
     ps = prompt_suffix.format(author_name, prompt, bot_name).rstrip()
 
     # Tokenize the string to get the number of tokens
-    tmp = f"{prompt_for_bot}\n\nCurrent conversation: {summary}\n\n\n{ps}"
-    tokens_running = tokenizer(tmp, return_tensors='pt')
-    tokens_len = tokens_running.input_ids.size(1)
+    tokens_len = 0
     
     # Iterate through the list in reverse order
     bot_running_dialog_limited = []
@@ -284,16 +285,6 @@ async def on_message(message):
     elif author.name not in user_refs:
         user_refs.append(author.name)
 
-    summary = ""
-    if params_gpt['summarise_level'] > 0 and channel.id not in summaries:
-        channel_history = await print_history(channel, params_gpt['summarise_level'])
-        summary = await summarise_channel(channel_history)
-        summaries[channel.id] = summary
-        await message.channel.send('Summary for channel {0}: {1}'.format(channel.id, summary))
-    elif channel.id in summaries:
-        summary = summaries[channel.id]
-
-    member_list = ", ".join(user_refs) 
     prompt_for_bot = params_gpt["prompt_for_bot"]
     prompt_for_bot = eval(f'f"""{prompt_for_bot}"""')
 
@@ -312,9 +303,10 @@ async def on_message(message):
 
             # For debugging
             result = "[NO-GPT RESPONSE]"
-            print(model)
             try:
                 reply = await chat_prompt(author_name, prompt, stopSequences=stop_sequences + member_stops)
+
+                print(reply)
                 result = reply.content.strip()
             except Exception as e:
                 print(e)
@@ -375,7 +367,7 @@ def str_to_bool(s: str) -> bool:
 async def periodic_task():
     global bot_running_dialog
     global channel_last
-    
+
     while True:
         # Get the current time
         now = datetime.now()
