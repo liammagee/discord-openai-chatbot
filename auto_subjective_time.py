@@ -14,6 +14,7 @@ import json
 from urllib.parse import quote
 from transformers import AutoTokenizer
 import aiocron
+from datetime import datetime
 
 BOT_ON = True
 
@@ -420,38 +421,20 @@ def str_to_bool(s: str) -> bool:
 
 
 
-# you can also import this from else where. 
-class cronjobs():
-    def __init__(self) -> None:
-
-        # print Hello world 20secs. 
-        @aiocron.crontab("* * * * * */20")
-        async def HelloWorld():
-            print("Hello World!")
-            print(channel_last)
-            if channel_last is None:
-                print("No channel_last_id")
-                return
-            await channel_last.send("Hello World!")
-
-    
-
-@aiocron.crontab("* * * * * */20")
-async def hello():
-    print("Hello World!")
-    print(channel_last)
-    if client.is_ready() and channel_last is None:
-        print("No channel_last_id")
-        return
-    await channel_last.send("Hello World!")
-
 
 async def periodic_task():
     while True:
-        print("Hello World!")
+        # Get the current time
+        now = datetime.now()
+
+        # Format the time into a human-readable string
+        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
+        
+        print(formatted_time)
+
         if channel_last:
-            
-            await channel_last.send("Hello World!")
+                     
+            await channel_last.send(formatted_time)
         else:
             print("No channel_last_id")
         await asyncio.sleep(20)  # sleep for 20 seconds
