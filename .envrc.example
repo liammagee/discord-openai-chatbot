@@ -1,2 +1,4 @@
 export OPENAI_API_KEY="your_openai_api_key_here"
 export DISCORD_BOTOKEN="insert_bot_token"
+export DISCORD_BOTOKEN_TIMOTHY="insert_timothy_token"
+export DISCORD_GUILD_ID="insert_guild_id_see_settings"
