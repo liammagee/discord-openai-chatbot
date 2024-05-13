@@ -5,9 +5,10 @@
 "I am time."
     ],    
     "channels": ["gpt-3", "gpt-3-maria", "duration"],
+    "channel_ids": ["1239371274090709053"],
     "summarise_level": 0,
     "max_size_dialog": 40,
-    "discord_token_env_var": "DISCORD_BOTOKEN_MARIA",
+    "discord_token_env_var": "DISCORD_BOTOKEN_TIMOTHY",
     "image_generation": "False",
     "gpt_settings": {
         "model":"gpt-4",
