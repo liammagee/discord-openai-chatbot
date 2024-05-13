@@ -35,6 +35,14 @@ To setup and run a bot:
     export DISCORD_BOTOKEN=<insert_bot_token>
 
 9. [Optional but advisable] Create and activate a virtual environment.
+    
+    # in the project directory
+    python3 -m venv venv
+    # activate the venv
+    source venv/bin/activate
+    # to deactiveate run
+    deactivate
+
 10. Install dependencies:
 
     pip3 install -r requirements.txt
