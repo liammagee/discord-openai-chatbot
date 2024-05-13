@@ -1,6 +1,5 @@
 from cmd import PROMPT
 import os
-import io
 import random
 import requests
 from openai import OpenAI
@@ -12,11 +11,6 @@ from discord.ui import Button, View
 from discord import app_commands
 import sys
 import json
-import warnings
-from PIL import Image
-from stability_sdk import client as client_sd
-import stability_sdk.interfaces.gooseai.generation.generation_pb2 as generation
-import replicate
 from urllib.parse import quote
 from transformers import AutoTokenizer
 import aiocron
@@ -40,16 +34,6 @@ client_openai = OpenAI(
     api_key = os.environ.get("OPENAI_API_KEY")
 )
 image_generation = False
-
-# Set up our connection to the API.
-stability_api = client_sd.StabilityInference(
-    key=os.environ['STABILITY_KEY'], # API Key reference.
-    verbose=True, # Print debug messages.
-    engine="stable-diffusion-xl-1024-v0-9", # Set the engine to use for generation.
-    # engine="stable-diffusion-v1-5", # Set the engine to use for generation.
-    # Available engines: stable-diffusion-v1 stable-diffusion-v1-5 stable-diffusion-512-v2-0 stable-diffusion-768-v2-0
-    # stable-diffusion-512-v2-1 stable-diffusion-768-v2-1 stable-inpainting-v1-0 stable-inpainting-512-v2-0
-)
 
 all_models = [
     "gpt-4-1106-preview",
