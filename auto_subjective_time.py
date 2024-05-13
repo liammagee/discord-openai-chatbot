@@ -53,17 +53,7 @@ stability_api = client_sd.StabilityInference(
 
 all_models = [
     "gpt-4-1106-preview",
-    "gpt-4",
-    "gpt-3.5-turbo",
-    "text-davinci-003",
-    "text-davinci-002",
-    "davinci",
-    "text-curie-001",
-    "curie",
-    "text-babbage-001",
-    "babbage",
-    "text-ada-001",
-    "ada"
+    "gpt-4"
 ]
 
 # Define a dictionary to hold the parameters and their default values
@@ -160,104 +150,6 @@ async def retrieve(url):
     return response
 
 
-class ButtonView(discord.ui.View):
-    def __init__(self, data):
-        super().__init__()
-        self.data = data
-
-    # Put this inside of the View
-    @discord.ui.button(label="Generate a Dall-E image", style=discord.ButtonStyle.gray)
-    async def button_dalle(self, interaction: discord.Interaction, button: discord.ui.Button):
-        data = self.data
-
-        await interaction.response.defer(thinking=True)  # Send a deferred response to the interaction
-
-        try:
-            image_url = await image_openai(data)
-            loop = asyncio.get_event_loop()
-            future1 = loop.run_in_executor(None, requests.get, image_url)
-            response = await future1
-            filename = image_url.split('/')[-1] + '.png'
-            # create temporary file to store downloaded file
-            with open(filename, 'wb') as f:
-                f.write(response.content)
-            file = discord.File(filename)
-            await interaction.followup.send("Dall-E:")
-            await interaction.followup.send(file=file)
-        except Exception as e:
-            print(e)
-
-    # # Put this inside of the View
-    @discord.ui.button(label="Generate a Stable Diffusion image", style=discord.ButtonStyle.gray)
-    async def button_sd(self, interaction: discord.Interaction, button: discord.ui.Button):
-        data = self.data
-
-        await interaction.response.defer(thinking=True)  # Send a deferred response to the interaction
-
-        image_urls, warning_messages = await image_sd(data, steps = 50, cgf_scale = 7.0, width = 1024, height = 1024, samples = 4)
-        await interaction.followup.send("SDXL 0.9:")
-        if len(image_urls) > 0:
-            for image_url in image_urls:
-                file = discord.File(image_url)
-                await interaction.followup.send(file=file)
-
-    # Put this inside of the View
-    @discord.ui.button(label="Generate a Replicate (SD) image", style=discord.ButtonStyle.gray)
-    async def button_replicate(self, interaction: discord.Interaction, button: discord.ui.Button):
-        try:
-            data = self.data
-            await interaction.response.defer(thinking=True)  # Send a deferred response to the interaction
-            loop = asyncio.get_event_loop()
-
-            image_urls = await image_replicate(data, steps = 30)
-            await interaction.followup.send("Replicate:")
-            for image_url in image_urls:
-
-                try:
-                    future1 = loop.run_in_executor(None, requests.get, image_url)
-                    response = await future1
-                    filename = image_url.split('/')[-1] + '.png'
-                    # create temporary file to store downloaded file
-                    with open(filename, 'wb') as f:
-                        f.write(response.content)
-                    file = discord.File(filename)
-                    await interaction.followup.send(file=file)
-                except requests.exceptions.RequestException as e:
-                    print("Error fetching URL:", e)
-                    await interaction.followup.send("Request timed out. Maybe try again?")
-                except asyncio.exceptions.TimeoutError as e:
-                    print("Error fetching URL:", e)
-                    await interaction.followup.send("Request timed out. Maybe try again?")
-        except Exception as ee:
-            print("Error fetching URL:", ee)
-            await interaction.followup.send("Request timed out. Maybe try again?")
-
-    # Put this inside of the View
-    # @discord.ui.button(label="Generate a Deforum animation", style=discord.ButtonStyle.gray)
-    # async def button_deforum(self, interaction: discord.Interaction, button: discord.ui.Button):
-    #     data = self.data
-
-    #     await interaction.response.defer(thinking=True)  # Send a deferred response to the interaction
-
-    #     image_urls = await image_deforum(data, steps = 30)
-    #     if isinstance(image_urls, str):
-    #         image_urls = [image_urls]
-    #     for image_url in image_urls:
-    #         loop = asyncio.get_event_loop()
-    #         try:
-    #             future1 = loop.run_in_executor(None, requests.get, image_url)
-    #             response = await future1
-    #             filename = image_url.split('/')[-1] + '.png'
-    #             # create temporary file to store downloaded file
-    #             with open(filename, 'wb') as f:
-    #                 f.write(response.content)
-    #             file = discord.File(filename)
-    #             await interaction.followup.send(file=file)
-    #         except requests.exceptions.RequestException as e:
-    #             print("Error fetching URL:", e)
-    #             await interaction.followup.send("Request timed out. Maybe try again?")
-
-
 @client.event
 async def on_ready():
     await tree.sync(guild=discord.Object(guild_id))
@@ -272,223 +164,6 @@ async def print_history(channel, limit):
 
 def prepare_summary(history):
     return history.replace("\n", " ").replace("\"", "'")
-
-async def image_openai(prompt):
-    response_openai = openai.Image.create(
-        prompt=prompt,
-        n=1,
-        size="1024x1024"
-    )
-    image_url = response_openai['data'][0]['url']
-    return image_url
-
-@tree.command(name = "dalle", description = "Run Dall-E", guild=discord.Object(guild_id)) #Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
-async def dalle(interaction: discord.Interaction, prompt: str):
-    await interaction.response.defer()
-    image_url = await image_openai(prompt)
-    await interaction.followup.send(image_url)
-
-async def image_sd(prompt, seed = None, steps = 30, cgf_scale = 0.75, width = 512, height = 512, samples = 1):
-    # Set up our initial generation parameters.
-    if seed == -1:
-        seed = None
-    answers = stability_api.generate(
-        prompt=[generation.Prompt(text=prompt,parameters=generation.PromptParameters(weight=1))],
-        # prompt=prompt,
-        seed=seed, # If a seed is provided, the resulting generated image will be deterministic.
-                        # What this means is that as long as all generation parameters remain the same, you can always recall the same image simply by generating it again.
-                        # Note: This isn't quite the case for Clip Guided generations, which we'll tackle in a future example notebook.
-        steps=steps, # Amount of inference steps performed on image generation. Defaults to 30.
-        cfg_scale=cgf_scale, # Influences how strongly your generation is guided to match your prompt.
-                    # Setting this value higher increases the strength in which it tries to match your prompt.
-                    # Defaults to 7.0 if not specified.
-        width=width, # Generation width, defaults to 512 if not included.
-        height=height, # Generation height, defaults to 512 if not included.
-        samples=samples, # Number of images to generate, defaults to 1 if not included.
-        # sampler=generation.SAMPLER_K_DPMPP_2M # Choose which sampler we want to denoise our generation with.
-        #                                             # Defaults to k_dpmpp_2m if not specified. Clip Guidance only supports ancestral samplers.
-        #                                             # (Available Samplers: ddim, plms, k_euler, k_euler_ancestral, k_heun, k_dpm_2, k_dpm_2_ancestral, k_dpmpp_2s_ancestral, k_lms, k_dpmpp_2m)
-    )
-
-    img_bytes = None
-    image_url = None
-    warning_messages = None
-
-    # Set up our warning to print to the console if the adult content classifier is tripped.
-    # If adult content classifier is not tripped, save generated images.
-    image_urls = []
-    warning_messages = []
-    try:
-        for resp in answers:
-            for artifact in resp.artifacts:
-                if artifact.finish_reason == generation.FILTER:
-                    warning_message = "Your request activated the API's safety filters and could not be processed." + "Please modify the prompt and try again."
-                    warnings.warn(warning_message)
-                    warning_messages.append(warning_message)
-                if artifact.type == generation.ARTIFACT_IMAGE:
-                    img_bytes = io.BytesIO(artifact.binary)
-                    img = Image.open(img_bytes)
-                    image_url = quote(prompt, safe='')[:50] + "_" + str(artifact.seed)+ ".png"
-                    img.save(image_url) # Save our generated images with their seed number as the filename.
-                    image_urls.append(image_url)
-    except Exception as e:
-        print(e)
-    return image_urls, warning_messages
-
-async def image_replicate(prompt, seed = None, steps = 30, cgf_scale = 0.75, width = 512, height = 512, samples = 1):
-
-    # model = replicate.models.get("cjwbw/stable-diffusion")
-    # version = model.versions.get("4049a9d8947a75a0b245e3937f194d27e3277bab4a9c1d6f81922919b65175fd")
-    # model = replicate.models.get("daanelson/stable-diffusion-long-prompts")
-    # version = model.versions.get("429303627614907bfee34c571c81bf7af9bcc6dec13e3051df2fc09c015e2e2f")
-    model = replicate.models.get("stability-ai/stable-diffusion")
-    version = model.versions.get("db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf")
-
-    # https://replicate.com/cjwbw/stable-diffusion/versions/4049a9d8947a75a0b245e3937f194d27e3277bab4a9c1d6f81922919b65175fd#input
-    inputs = {
-        # Input prompt
-        'prompt': prompt,
-
-        # The prompt NOT to guide the image generation. Ignored when not using
-        # guidance
-        'negative_prompt': "ugly, tiling, poorly drawn hands, poorly drawn feet, poorly drawn face, out of frame, extra limbs, disfigured, deformed, body out of frame, bad anatomy, watermark, signature, cut off, low contrast, underexposed, overexposed, bad art, beginner, amateur, distorted face",
-
-        # pixel dimensions of output image
-        'image_dimensions': "768x768",
-
-        # Width of output image. Maximum size is 1024x768 or 768x1024 because
-        # of memory limits
-        # 'width': 512,
-
-        # Height of output image. Maximum size is 1024x768 or 768x1024 because
-        # of memory limits
-        # 'height': 512,
-
-        # Inital image to generate variations of. Will be resized to the
-        # specified width and height
-        # 'init_image': open("path/to/file", "rb"),
-
-        # Black and white image to use as mask for inpainting over init_image.
-        # Black pixels are inpainted and white pixels are preserved. Tends to
-        # work better with prompt strength of 0.5-0.7. Consider using
-        # https://replicate.com/andreasjansson/stable-diffusion-inpainting
-        # instead.
-        # 'mask': open("path/to/file", "rb"),
-
-        # Prompt strength when using init image. 1.0 corresponds to full
-        # destruction of information in init image
-        'prompt_strength': 0.8,
-
-        # Number of images to output. If the NSFW filter is triggered, you may
-        # get fewer outputs than this.
-        # Range: 1 to 10
-        'num_outputs': 1,
-
-        # Number of denoising steps
-        # Range: 1 to 500
-        'num_inference_steps': 30,
-
-        # Scale for classifier-free guidance
-        # Range: 1 to 20
-        'guidance_scale': 7.5,
-
-        # Choose a scheduler. If you use an init image, PNDM will be used
-        'scheduler': "DPMSolverMultistep",
-
-        # Random seed. Leave blank to randomize the seed
-        # 'seed': ...,
-    }
-
-    # https://replicate.com/cjwbw/stable-diffusion/versions/4049a9d8947a75a0b245e3937f194d27e3277bab4a9c1d6f81922919b65175fd#output-schema
-    output = version.predict(**inputs)    
-    return output
-
-async def image_deforum(prompt, seed = None, steps = 30, cgf_scale = 0.75, width = 512, height = 512, samples = 1):
-
-    model = replicate.models.get("deforum/deforum_stable_diffusion")
-    version = model.versions.get("e22e77495f2fb83c34d5fae2ad8ab63c0a87b6b573b6208e1535b23b89ea66d6")
-
-    # https://replicate.com/deforum/deforum_stable_diffusion/versions/e22e77495f2fb83c34d5fae2ad8ab63c0a87b6b573b6208e1535b23b89ea66d6#input
-    inputs = {
-        # Number of frames for animation
-        # Range: 100 to 1000
-        'max_frames': 100,
-
-        # Prompt for animation. Provide 'frame number : prompt at this frame',
-        # separate different prompts with '|'. Make sure the frame number does
-        # not exceed the max_frames.
-        'animation_prompts': f"0: {prompt}",
-
-        # angle parameter for the motion
-        'angle': "0:(0)",
-
-        # zoom parameter for the motion
-        'zoom': "0: (1.04)",
-
-        # translation_x parameter for the motion
-        'translation_x': "0: (0)",
-
-        # translation_y parameter for the motion
-        'translation_y': "0: (0)",
-
-        'color_coherence': "Match Frame 0 LAB",
-
-        'sampler': "plms",
-
-        # Choose fps for the video.
-        # Range: 10 to 60
-        'fps': 15,
-
-        # Random seed. Leave blank to randomize the seed
-        # 'seed': ...,
-    }
-    # https://replicate.com/cjwbw/stable-diffusion/versions/4049a9d8947a75a0b245e3937f194d27e3277bab4a9c1d6f81922919b65175fd#output-schema
-    output = version.predict(**inputs)    
-    return output
-
-@tree.command(name = "sd", description = "Run Stable Diffusion", guild=discord.Object(guild_id)) #Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
-async def sd(interaction: discord.Interaction, prompt: str, seed: int = None, steps: int = 30, cgf_scale: float = 7.5, width: int = 512, height: int = 512, samples: int = 1):
-    await interaction.response.defer()
-    image_urls, warning_messages = await image_sd(prompt, seed, steps, cgf_scale, width, height, samples)
-    if len(image_urls) > 0:
-        for image_url in image_urls:
-            file = discord.File(image_url)
-            await interaction.followup.send("SDXL 0.9:")
-            await interaction.followup.send(file=file)
-    elif len(warning_messages)> -1:
-        for warning in warning_messages:
-            await interaction.followup.send(warning)
-    else:
-        await interaction.followup.send("Oh no! Could process this prompt.")
-
-
-@tree.command(name = "replicate", description = "Run Stable Diffusion", guild=discord.Object(guild_id)) #Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
-async def replicate_command(interaction: discord.Interaction, prompt: str, seed: int = None, steps: int = 30, cgf_scale: float = 7.5, width: int = 512, height: int = 512, samples: int = 1):
-    await interaction.response.defer()
-    image_urls = await image_replicate(prompt, seed, steps, cgf_scale, width, height, samples)
-    if len(image_urls) > 0:
-        for image_url in image_urls:
-            loop = asyncio.get_event_loop()
-            try:
-                future1 = loop.run_in_executor(None, requests.get, image_url)
-                response = await future1
-                filename = image_url.split('/')[-1] + '.png'
-                # create temporary file to store downloaded file
-                with open(filename, 'wb') as f:
-                    f.write(response.content)
-                file = discord.File(filename)
-                await interaction.followup.send("Replicate:")
-                await interaction.followup.send(file=file)
-            except requests.exceptions.RequestException as e:
-                print("Error fetching URL:", e)
-                await interaction.followup.send(warning)
-                await interaction.followup.send("Request timed out. Maybe try again?")
-            for image_url in image_urls:
-                file = discord.File(image_url)
-                await interaction.followup.send(file=file)
-    else:
-        await interaction.followup.send("Oh no! Could process this prompt.")
-
 
 @tree.command(name = "get", description = "Show parameters", guild=discord.Object(guild_id)) #Add the guild ids in which the slash command will appear. If it should be in all, remove the argument, but note that it will take some time (up to an hour) to register the command if it's for all guilds.
 async def get_params(interaction: discord.Interaction):
@@ -648,7 +323,6 @@ async def on_message(message):
         # Simulate typing for 3 seconds
         async with channel.typing():
             prompt = data
-
             threshold = 0
 
 
@@ -686,7 +360,6 @@ async def on_message(message):
 
 
                 result = '{0}'.format(result)
-                view = ButtonView(result)
 
 
                 max_length = 2000
@@ -785,6 +458,7 @@ async def hello():
         print("No channel_last_id")
         return
     await channel_last.send("Hello World!")
+
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
 {
-    "name": "Duremeter",
+    "name": "Timothy",
     "guild_id": "1015035862536437810",                 
     "prompt_for_bot": [
-"I am time."
+"I am new to the world. I arrive knowing nothing. I wait for time's demands."
     ],    
-    "channels": ["gpt-3", "gpt-3-maria", "duration"],
+    "channels": ["timothy"],
     "channel_ids": ["1239371274090709053"],
     "summarise_level": 0,
     "max_size_dialog": 40,
