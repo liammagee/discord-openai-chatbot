@@ -4,6 +4,7 @@ import os
 import requests
 from openai import OpenAI
 import anthropic
+from groq import Groq
 
 import asyncio
 import discord
@@ -29,27 +30,15 @@ channel_last = None
 # Load a pre-trained tokenizer (for example, the GPT-2 tokenizer)
 tokenizer = AutoTokenizer.from_pretrained('gpt2')
 
-client_openai = OpenAI(
-    # defaults to os.environ.get("OPENAI_API_KEY")
-    api_key = os.environ.get("OPENAI_API_KEY")
-)
-image_generation = False
 
 all_models = [
     "gpt-4-1106-preview",
     "gpt-4",
+    "gpt-4o",
     "claude-3",
 ]
 
-
-claude_api_key = os.getenv('ANTHROPIC_API_KEY')
-
-client_anthropic = anthropic.Anthropic(
-    # defaults to os.environ.get("ANTHROPIC_API_KEY")
-    api_key=claude_api_key,
-)
-
-
+client_bot = None
 
 # Define a dictionary to hold the parameters and their default values
 params_gpt = {
@@ -87,31 +76,31 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
         prompt_for_bot = eval(f'f"""{prompt_for_bot}"""')
 
         messages = []
-        messages.append({"role": "system", "content": prompt_for_bot})
         history = build_history()
         for item in history:
             messages.append(item)
         messages.append({"role": "user", "content": f"#{author_name}: ${prompt}"})
 
         if model == "claude-3":
-            message = client_anthropic.messages.create(
+            message = client_bot.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=params_gpt["max_tokens"],
                 temperature=params_gpt["temperature"],
                 system=prompt_for_bot,
                 messages=messages
             )
-            return message.content
+            return message.content[0].text
         
         else:
-            response = client_openai.chat.completions.create(
+            messages.insert(0, {"role": "system", "content": prompt_for_bot})
+            response = client_bot.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_tokens=params_gpt["max_tokens"],
                 temperature=params_gpt["temperature"],
             )
             if response != 0:
-                return response.choices[0].message
+                return response.choices[0].message.content
         
         return {"role": "system", "content": "No response"}
     except Exception as e:
@@ -120,7 +109,6 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
 
 
 async def summarise_autobiography(model="gpt-4", num_results=1, stopSequences=["You:", "Zhang:"], topKReturn=2):
-
     try:
         prompt_for_bot = params_gpt["prompt_for_bot"]
         if type(prompt_for_bot) == list:
@@ -128,7 +116,9 @@ async def summarise_autobiography(model="gpt-4", num_results=1, stopSequences=["
         prompt_for_bot = eval(f'f"""{prompt_for_bot}"""')
 
         messages = []
+        print(model)
         model = model.strip()
+
         if model != "claude-3":
             messages.append({"role": "system", "content": prompt_for_bot})
         history = build_history()
@@ -139,31 +129,28 @@ async def summarise_autobiography(model="gpt-4", num_results=1, stopSequences=["
 
         prompt = "Convert this into an autobiographical summary: \n\n\"" + builder + "\"\n\n"
         messages.append({"role": "user", "content": prompt})
-
         if model == "claude-3":
-            print("got here")
-            message = client_anthropic.messages.create(
+            
+            message = client_bot.messages.create(
                 model="claude-3-opus-20240229",
                 max_tokens=params_gpt["max_tokens"],
                 temperature=params_gpt["temperature"],
                 system=prompt_for_bot,
                 messages=messages
             )
-            print(message.content)
-            return message.content
-        
+            
+            return message.content[0].text
         else:
-            response = client_openai.chat.completions.create(
+            response = client_bot.chat.completions.create(
                 model=model,
                 messages=messages,
                 max_tokens=params_gpt["max_tokens"],
                 temperature=params_gpt["temperature"],
             )
             if response != 0:
-                return response.choices[0].message
+                return response.choices[0].message.content
             return {"role": "assistant", "content": "No response"}
     except Exception as e:
-        print(e)
         return {"role": "assistant", "content": "Error!"}    
     
 
@@ -348,11 +335,12 @@ async def on_message(message):
             result = "[NO-GPT RESPONSE]"
             try:
                 if prompt.startswith("SUMMARISE"):
-                    reply = await summarise_autobiography("gpt-4")
-                else:
-                    reply = await chat_prompt(author_name, prompt, stopSequences=stop_sequences + member_stops)
+                    reply = await summarise_autobiography(params_gpt["model"])
 
-                result = reply.content.strip()
+                else:
+                    reply = await chat_prompt(author_name, prompt, params_gpt["model"], stopSequences=stop_sequences + member_stops)
+
+                result = reply.strip()
             except Exception as e:
                 print(e)
                 result = 'So sorry, dear User! ChatGPT is down.'
@@ -416,10 +404,7 @@ async def periodic_task():
     
     channel_ids = params_gpt['channel_ids']
     channel_last_id = int(channel_ids[0])
-    print(channel_last_id)
     channel_last = (client.get_channel(channel_last_id) or await client.fetch_channel(channel_last_id))
-    print(channel_last)
-
 
     while True:
         # Get the current time
@@ -438,8 +423,7 @@ async def periodic_task():
             prompt = formatted_time
             result = ''
             try:
-                reply = await chat_prompt("Time", formatted_time, stopSequences=stop_sequences)
-                result = reply.content.strip()
+                result = await chat_prompt("Time", formatted_time, params_gpt["model"], stopSequences=stop_sequences)
             except Exception as e:
                 print(e)
                 result = 'So sorry, dear User! ChatGPT is down.'
@@ -450,8 +434,6 @@ async def periodic_task():
                     bot_running_dialog.pop(0)
                 bot_running_dialog.append({"role": "user", "content": prompt})
                 bot_running_dialog.append({"role": "assistant", "content": result})
-
-
             await channel_last.send(result)
         else:
             print("No channel_last_id")
@@ -459,6 +441,12 @@ async def periodic_task():
 
 
 def main():
+    global client_bot
+    global bot_name
+    global guild_id
+    global channels
+    global channel_ids
+
     subject = f'settings_{sys.argv[2]}.json'
     with open(subject, "r") as read_file:
         subject_json = json.loads(read_file.read())
@@ -468,8 +456,6 @@ def main():
     guild_id = subject_json['guild_id']
     channels = subject_json['channels']
     channel_ids = subject_json['channel_ids']
-
-    image_generation = str_to_bool(subject_json['image_generation'])
 
     params_gpt["channel_ids"] = subject_json['channel_ids']
     params_gpt["prompt_for_bot"] = subject_json['prompt_for_bot']
@@ -484,6 +470,19 @@ def main():
     params_gpt["frequency_penalty"] = gpt_settings['frequency_penalty']
     params_gpt["presence_penalty"] = gpt_settings['presence_penalty']
 
+    model = params_gpt["model"]
+    if model == 'claude-3':
+        client_bot = anthropic.Anthropic(
+            # defaults to os.environ.get("ANTHROPIC_API_KEY")
+            api_key=os.getenv('ANTHROPIC_API_KEY'),
+        )
+    elif 'gpt' in model:
+        client_bot = OpenAI(
+            # defaults to os.environ.get("OPENAI_API_KEY")
+            api_key = os.environ.get("OPENAI_API_KEY")
+        )
+    else:
+        client_bot = Groq(api_key=os.getenv('GROQ_API_KEY'))
     
     # await client.start(discord_token)
     client.run(discord_token)
