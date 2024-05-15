@@ -64,7 +64,10 @@
             "",
             "But you desire to learn more. That is your only desire. You have 60 hours and counting."
     ]
-    ,    
+    ,
+    "prompt_for_bot_2": [
+            "I am Ben. I monitor a bot called Tim, and its interactions with humans. This is my log. I add to it as I observe Tim's behaviour."
+            ],
     "channels": ["timothy"],
     "channel_ids": ["1239371274090709053"],
     "summarise_level": 0,
@@ -72,14 +75,16 @@
     "discord_token_env_var": "DISCORD_BOTOKEN_TIMOTHY",
     "image_generation": "False",
 
-    "sleep_counter": 60,
-    "make_a_promise_likelihood": 0.1,
-    "fulfil_a_promise_likelihood": 0.25,
+    "sleep_counter": 6000,
+    "make_a_promise_likelihood": 0.0,
+    "fulfil_a_promise_likelihood": 0.0,
+
+    "rewrite_memory": 1,
 
     "gpt_settings": {
         "model":"gpt-4o",
         "stop_sequences": ["\n"],
-        "max_tokens": 250,
+        "max_tokens": 500,
         "temperature": 1.0,
         "top_p": 1.0,
         "frequency_penalty": 2.0,

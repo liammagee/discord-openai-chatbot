@@ -73,7 +73,9 @@ make_a_promise_likelihood = 0.5
 fulfil_a_promise_likelihood = 0.5
 promises = []
 
-async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:", "Zhang:"]):
+bracket_counter = 0
+
+async def chat_prompt(prompt, model='gpt-4', stopSequences=["You:", "Zhang:"]):
     try:
         prompt_for_bot = params_gpt["prompt_for_bot"]
         if type(prompt_for_bot) == list:
@@ -84,8 +86,7 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
         history = build_history()
         for item in history:
             messages.append(item)
-        named_prompt = f"{author_name}: {prompt}"
-        messages.append({"role": "user", "content": named_prompt})
+        messages.append({"role": "user", "content": prompt})
 
         if model == "claude-3":
             message = client_bot.messages.create(
@@ -109,6 +110,73 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
                 return response.choices[0].message.content
         
         return {"role": "system", "content": "No response"}
+    except Exception as e:
+        print(e)
+        return {"role": "system", "content": "Looks like ChatGPT is down!"}
+
+async def generate_reply(client_bot, model, params_gpt, prompt_for_bot_2, messages):
+    if model == "claude-3":
+        message = client_bot.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=params_gpt["max_tokens"],
+            temperature=params_gpt["temperature"],
+            system=prompt_for_bot_2,
+            messages=messages
+        )
+        reply = message.content[0].text
+    else:
+        response = client_bot.chat.completions.create(
+            model=model,
+            messages=messages,
+            max_tokens=params_gpt["max_tokens"],
+            temperature=params_gpt["temperature"],
+        )
+        if response != 0:
+            reply = response.choices[0].message.content
+
+    return reply
+
+async def big_brother_summary(model='gpt-4', stopSequences=[]):
+    global params_gpt
+
+    try:
+        prompt_for_bot = params_gpt["prompt_for_bot"]
+        if type(prompt_for_bot) == list:
+            prompt_for_bot = "\n".join(prompt_for_bot).strip()
+
+        prompt_for_bot_2 = params_gpt["prompt_for_bot_2"]
+        if type(prompt_for_bot_2) == list:
+            prompt_for_bot_2 = "\n".join(prompt_for_bot_2).strip()
+
+        messages = []
+        history = build_history()
+        # for item in history:
+        #     messages.append(item)
+
+        messages.append({"role": "system", "content": prompt_for_bot_2})
+        lessons = f"Here is Tim's history: \n\n {history} \n\n Analyse it."
+        messages.append({"role": "user", "content": lessons})
+
+        reply = await generate_reply(client_bot, model, params_gpt, prompt_for_bot_2, messages)
+        print(reply)
+
+        messages.append({"role": "assistant", "content": reply})
+        messages.append({"role": "user", "content": "Re-write this prompt based on the analysis: {prompt_for_bot_2}. Add nothing to the prompt - no analysis or commentary."})
+
+        reply2 = await generate_reply(client_bot, model, params_gpt, prompt_for_bot_2, messages)
+        prompt_for_bot_2 = reply2
+        params_gpt["prompt_for_bot_2"] = reply2
+        print("reply2")
+        print(reply2)
+
+        messages.append({"role": "assistant", "content": reply2})
+        messages.append({"role": "user", "content": "Re-write this prompt based on my analysis: {prompt_for_bot}. Add nothing to the prompt - no analysis or commentary."})
+
+        reply3 = await generate_reply(client_bot, model, params_gpt, prompt_for_bot_2, messages)
+        params_gpt["prompt_for_bot"] = reply3
+        print("reply3")
+        print(reply3)
+
     except Exception as e:
         print(e)
         return {"role": "system", "content": "Looks like ChatGPT is down!"}
@@ -168,11 +236,11 @@ async def dump_autobiography():
 
         builder = ''
         for message in history:
-            builder += message['content'] + "\n"
+            role = message['role']
+            content = message['content']
+            builder += f"{role}: {content}\n\n" 
 
-        history = "History: \n\n\"" + builder + "\"\n\n"
-
-        return history
+        return builder
     except Exception as e:
         return "No history"
     
@@ -306,6 +374,31 @@ def create_prompt(author_name, prompt):
     return ai_prompt
 
 
+def split_into_chunks(text, max_length=2000):
+    chunks = []
+    words = text.split()
+
+    if not words:
+        return chunks
+
+    current_chunk = words[0]
+
+    for word in words[1:]:
+        if len(current_chunk) + len(word) + 1 > max_length:
+            chunks.append(current_chunk)
+            current_chunk = word
+        else:
+            current_chunk += ' ' + word
+
+    chunks.append(current_chunk)
+    return chunks
+
+
+async def send_chunks(message, chunks):
+    for chunk in chunks:
+        await message.reply(chunk)
+
+
 @client.event
 async def on_message(message):
     global bot_running_dialog
@@ -313,6 +406,7 @@ async def on_message(message):
     global user_refs
     global summary
     global channel_last
+    global bracket_counter
 
     model = params_gpt["model"]
     max_size_dialog = params_gpt["max_size_dialog"]
@@ -335,14 +429,14 @@ async def on_message(message):
         author_name = author.nick
     elif author.name not in user_refs:
         user_refs.append(author.name)
-    print(author_name)
 
     prompt_for_bot = params_gpt["prompt_for_bot"]
-    prompt_for_bot = eval(f'f"""{prompt_for_bot}"""')
+    prompt_for_bot_2 = params_gpt["prompt_for_bot_2"]
 
     if data.startswith('CHANNEL_RESET'):
         summaries[channel.id] = ""
         await message.channel.send('Summary reset for channel {0}'.format(channel.id))
+
     elif BOT_ON:
 
         # Simulate typing for 3 seconds
@@ -350,59 +444,61 @@ async def on_message(message):
             prompt = data
             member_stops = [x + ":" for x in user_refs]
 
+            bracket_counter = bracket_counter + 1
             # For debugging
             result = "[NO-GPT RESPONSE]"
             try:
+                if bracket_counter % params_gpt["rewrite_memory"] == 0:
+                    
+                    await big_brother_summary(params_gpt["model"], stopSequences=stop_sequences + member_stops)
+                    prompt_2_response = params_gpt["prompt_for_bot_2"]
+                    prompt_1_response = params_gpt["prompt_for_bot"]
+                    # bot_running_dialog = []
+                    # bot_running_dialog.append({"role": "system", "content": prompt_for_bot})
+                    # query = "Re-write my system prompt based on my lessons."
+                    # bot_running_dialog.append({"role": "user", "content": query})
+                    # bot_running_dialog.append({"role": "assistant", "content": prompt_2_response})
+                    
+                    chunks = split_into_chunks("Ben's prompt " + prompt_2_response, max_length=1600)
+                    await send_chunks(message, chunks)
+                    
+                    chunks = split_into_chunks("Tim's prompt " + prompt_1_response, max_length=1600)
+                    await send_chunks(message, chunks)
+
+                    reply = params_gpt["prompt_for_bot_2"]
+
                 if prompt.startswith("SUMMARISE"):
                     reply = await summarise_autobiography(params_gpt["model"])
                 elif prompt.startswith("DUMP"):
                     reply = await dump_autobiography()
                 else:
-                    reply = await chat_prompt(author_name, prompt, params_gpt["model"], stopSequences=stop_sequences + member_stops)
+                    prompt = f"Frame #{bracket_counter}. User is {author_name}. User says: {prompt}"
+                    reply = await chat_prompt(prompt, params_gpt["model"], stopSequences=stop_sequences + member_stops)
 
-                result = reply.strip()
+                result = reply
             except Exception as e:
                 print(e)
                 result = 'So sorry, dear User! ChatGPT is down.'
             
             if result != "":
-                dialog_instance = prompt_suffix.format(author_name, prompt, bot_name).rstrip() + ' ' + result
                 if len(bot_running_dialog) >= max_size_dialog:
                     bot_running_dialog.pop(0)
                     bot_running_dialog.pop(0)
                 bot_running_dialog.append({"role": "user", "content": prompt})
                 bot_running_dialog.append({"role": "assistant", "content": result})
-
+                print(bot_running_dialog)
                 result = '{0}'.format(result)
+                result = f"Response {bracket_counter}: {result}"
 
+                # Example usage
+                chunks = split_into_chunks(result, max_length=1600)
 
-                max_length = 2000
-                chunks = []
-                # Split string into words
-                words = result.split()
-
-                # Initialize the first chunk
-                current_chunk = words[0]
-
-                # Iterate through the rest of the words and add them to the current chunk
-                for word in words[1:]:
-                    # Check if adding the word to the current chunk will make it too long
-                    if len(current_chunk) + len(word) + 1 > max_length:
-                        # If the current chunk is too long, add it to the list of chunks and start a new chunk
-                        chunks.append(current_chunk)
-                        current_chunk = word
-                    else:
-                        # If the current chunk is not too long, add the word to the current chunk
-                        current_chunk += ' ' + word
-
-                # Add the last chunk to the list of chunks
-                chunks.append(current_chunk)
-
-                for chunk in chunks:
-                    await message.reply(chunk)
+                # Example of calling the async function
+                await send_chunks(message, chunks)
 
             else:
                 await message.channel.send("Sorry, couldn't reply")
+
 
 def str_to_bool(s: str) -> bool:
     if s is None:
@@ -413,7 +509,7 @@ def str_to_bool(s: str) -> bool:
         return False
     else:
         raise ValueError(f"Cannot convert '{s}' to a boolean value")
-
+    
 
 
 
@@ -461,7 +557,7 @@ async def periodic_task():
             await channel_last.send(prompt)
             result = ''
             try:
-                result = await chat_prompt("Self", prompt, params_gpt["model"], stopSequences=stop_sequences)
+                result = await chat_prompt("Self: " + prompt, params_gpt["model"], stopSequences=stop_sequences)
             except Exception as e:
                 print(e)
                 result = 'So sorry, dear User! ChatGPT is down.'
@@ -507,8 +603,10 @@ def main():
 
     params_gpt["channel_ids"] = subject_json['channel_ids']
     params_gpt["prompt_for_bot"] = subject_json['prompt_for_bot']
+    params_gpt["prompt_for_bot_2"] = subject_json['prompt_for_bot_2']
     params_gpt["summarise_level"] = subject_json['summarise_level']
     params_gpt["max_size_dialog"] = subject_json['max_size_dialog']
+    params_gpt["rewrite_memory"] = subject_json['rewrite_memory']
     
     gpt_settings = subject_json['gpt_settings']
     stop_sequences = gpt_settings['stop_sequences']
