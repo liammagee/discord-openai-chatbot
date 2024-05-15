@@ -15,6 +15,7 @@ import json
 from urllib.parse import quote
 from transformers import AutoTokenizer
 from datetime import datetime
+import random
 
 BOT_ON = True
 
@@ -65,8 +66,12 @@ command_for_bot="Zhang: "
 prompt_suffix = """{0}: {1}
 {2}:"""
 
-
-sleep_counter = 10
+initial_time = datetime.now()
+formatted_time = None
+sleep_counter = 60
+make_a_promise_likelihood = 0.5
+fulfil_a_promise_likelihood = 0.5
+promises = []
 
 async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:", "Zhang:"]):
     try:
@@ -79,7 +84,8 @@ async def chat_prompt(author_name, prompt, model='gpt-4', stopSequences=["You:",
         history = build_history()
         for item in history:
             messages.append(item)
-        messages.append({"role": "user", "content": f"#{author_name}: ${prompt}"})
+        named_prompt = f"{author_name}: {prompt}"
+        messages.append({"role": "user", "content": named_prompt})
 
         if model == "claude-3":
             message = client_bot.messages.create(
@@ -155,6 +161,22 @@ async def summarise_autobiography(model="gpt-4", num_results=1, stopSequences=["
     
 
 
+async def dump_autobiography():
+    try:
+
+        history = build_history()
+
+        builder = ''
+        for message in history:
+            builder += message['content'] + "\n"
+
+        history = "History: \n\n\"" + builder + "\"\n\n"
+
+        return history
+    except Exception as e:
+        return "No history"
+    
+
 async def fetch(url):
     response = requests.get(url)
     return response
@@ -194,7 +216,6 @@ async def get_params(interaction: discord.Interaction):
     response += f"summaries: {summaries}\n"
     history = create_prompt("", "")
     # response += f"history: {history}\n"
-    print(history)
 
     await interaction.response.send_message(response)
 
@@ -314,6 +335,7 @@ async def on_message(message):
         author_name = author.nick
     elif author.name not in user_refs:
         user_refs.append(author.name)
+    print(author_name)
 
     prompt_for_bot = params_gpt["prompt_for_bot"]
     prompt_for_bot = eval(f'f"""{prompt_for_bot}"""')
@@ -326,9 +348,6 @@ async def on_message(message):
         # Simulate typing for 3 seconds
         async with channel.typing():
             prompt = data
-            threshold = 0
-
-
             member_stops = [x + ":" for x in user_refs]
 
             # For debugging
@@ -336,7 +355,8 @@ async def on_message(message):
             try:
                 if prompt.startswith("SUMMARISE"):
                     reply = await summarise_autobiography(params_gpt["model"])
-
+                elif prompt.startswith("DUMP"):
+                    reply = await dump_autobiography()
                 else:
                     reply = await chat_prompt(author_name, prompt, params_gpt["model"], stopSequences=stop_sequences + member_stops)
 
@@ -400,7 +420,8 @@ def str_to_bool(s: str) -> bool:
 async def periodic_task():
     global bot_running_dialog
     global channel_last
-    global sleep_counter
+    global sleep_counter, formatted_time
+    global make_a_promise_likelihood,  fulfil_a_promise_likelihood
     
     channel_ids = params_gpt['channel_ids']
     channel_last_id = int(channel_ids[0])
@@ -409,21 +430,38 @@ async def periodic_task():
     while True:
         # Get the current time
         now = datetime.now()
+        
+        elapsed_time = now - initial_time
 
-        # Format the time into a human-readable string
-        formatted_time = now.strftime("%Y-%m-%d %H:%M:%S")
-        formatted_time = f"Time: {formatted_time}"
+        # Convert the difference into seconds
+        total_seconds = elapsed_time.total_seconds() * 360
 
-        print(formatted_time)
+        # Convert seconds into hours and minutes
+        hours = total_seconds // 3600
+        minutes = (total_seconds % 3600) // 60
+        elapsed_time_formatted = f"Difference is {int(hours)} hours and {int(minutes)} minutes"
+
+        make_a_promise = make_a_promise_likelihood > random.random()
+        fulfil_a_promise = fulfil_a_promise_likelihood > random.random()
+        print("make_a_promise", make_a_promise)
+        print("fulfil_a_promise", fulfil_a_promise)
 
         if channel_last:
+            message = ''
+            if make_a_promise:
+                prompt = "Make promise: Generate a very brief note-to-self that will remind you to reflect on events to date at a future point in time."
+            elif fulfil_a_promise and len(promises) > 0:
+                random_index = random.randint(0, len(promises) - 1)
+                prompt = promises[random_index]
+                prompt = "Fulfil promise: " + prompt
+                promises.remove(promises[random_index])
+            else:
+                prompt = elapsed_time_formatted
 
-            await channel_last.send(formatted_time)         
-
-            prompt = formatted_time
+            await channel_last.send(prompt)
             result = ''
             try:
-                result = await chat_prompt("Time", formatted_time, params_gpt["model"], stopSequences=stop_sequences)
+                result = await chat_prompt("Self", prompt, params_gpt["model"], stopSequences=stop_sequences)
             except Exception as e:
                 print(e)
                 result = 'So sorry, dear User! ChatGPT is down.'
@@ -434,6 +472,8 @@ async def periodic_task():
                     bot_running_dialog.pop(0)
                 bot_running_dialog.append({"role": "user", "content": prompt})
                 bot_running_dialog.append({"role": "assistant", "content": result})
+                if make_a_promise:
+                    promises.append(result)
             await channel_last.send(result)
         else:
             print("No channel_last_id")
@@ -446,6 +486,7 @@ def main():
     global guild_id
     global channels
     global channel_ids
+    global sleep_counter, make_a_promise_likelihood, fulfil_a_promise_likelihood
 
     subject = f'settings_{sys.argv[2]}.json'
     with open(subject, "r") as read_file:
@@ -456,11 +497,19 @@ def main():
     guild_id = subject_json['guild_id']
     channels = subject_json['channels']
     channel_ids = subject_json['channel_ids']
+    try:
+        sleep_counter = int(subject_json['sleep_counter'])
+        make_a_promise_likelihood = float(subject_json['make_a_promise_likelihood'])
+        fulfil_a_promise_likelihood = float(subject_json['fulfil_a_promise_likelihood'])
+    except Exception as e:
+        print(e)
+        pass
 
     params_gpt["channel_ids"] = subject_json['channel_ids']
     params_gpt["prompt_for_bot"] = subject_json['prompt_for_bot']
     params_gpt["summarise_level"] = subject_json['summarise_level']
     params_gpt["max_size_dialog"] = subject_json['max_size_dialog']
+    
     gpt_settings = subject_json['gpt_settings']
     stop_sequences = gpt_settings['stop_sequences']
     params_gpt["model"] = gpt_settings['model']
